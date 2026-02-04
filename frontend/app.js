@@ -34,13 +34,21 @@ let currentCommit = "0x";
 let cachedOwner = "";
 let commitAttempted = false;
 let eventBound = false;
+const resolving = new Set();
 
 const msg = (el, text) => {
   el.classList.toggle("hidden", !text);
   el.textContent = text || "";
 };
 
-const pretty = (_err, fallback) => fallback;
+const pretty = (err, fallback) => {
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+  if (err?.info?.error?.message) return err.info.error.message;
+  if (err?.reason) return err.reason;
+  if (err?.message) return err.message;
+  return fallback;
+};
 
 const onHardhat = async () => {
   if (!window.ethereum) return false;
@@ -150,6 +158,8 @@ const showResult = (reels, result) => {
 
 const resolvePlayer = async (player) => {
   if (!HOUSE_SECRET) return;
+  if (resolving.has(player)) return;
+  resolving.add(player);
   try {
     const c = await getSlotMachine(false);
     const signer = c.runner;
@@ -183,6 +193,8 @@ const resolvePlayer = async (player) => {
     refreshConfig();
   } catch (err) {
     setStatus(pretty(err, "Auto-resolve failed"));
+  } finally {
+    resolving.delete(player);
   }
 };
 
@@ -206,6 +218,12 @@ const spin = async () => {
     })).wait();
     setStatus("Spin requested. Waiting for resolve.");
     ui.seedInput.value = randomSeed();
+    if (AUTO_RESOLVE && HOUSE_SECRET) {
+      const player = ui.accountValue.textContent;
+      if (player && player !== "Not connected") {
+        await resolvePlayer(player);
+      }
+    }
   } catch (err) {
     setStatus(pretty(err, "Spin failed"));
   }

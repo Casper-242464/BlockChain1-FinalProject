@@ -1,4 +1,4 @@
-export const SLOT_MACHINE_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+export const SLOT_MACHINE_ADDRESS = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
 export const SLOT_MACHINE_ABI = [
   {
@@ -137,8 +137,19 @@ export async function getSigner() {
 export async function getSlotMachine(readOnly = false) {
   if (readOnly) {
     const provider = getProvider();
+    const code = await provider.getCode(SLOT_MACHINE_ADDRESS);
+    if (!code || code === "0x") {
+      throw new Error(`SlotMachine not deployed at ${SLOT_MACHINE_ADDRESS}`);
+    }
     return new ethers.Contract(SLOT_MACHINE_ADDRESS, SLOT_MACHINE_ABI, provider);
   }
   const signer = await getSigner();
+  const provider = signer.provider;
+  if (provider) {
+    const code = await provider.getCode(SLOT_MACHINE_ADDRESS);
+    if (!code || code === "0x") {
+      throw new Error(`SlotMachine not deployed at ${SLOT_MACHINE_ADDRESS}`);
+    }
+  }
   return new ethers.Contract(SLOT_MACHINE_ADDRESS, SLOT_MACHINE_ABI, signer);
 }
