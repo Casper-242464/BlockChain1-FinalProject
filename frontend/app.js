@@ -4,6 +4,7 @@ import { computeSlotsFromRoll, normalizeSecret, randomSeed } from "./gameLogic.j
 const $ = (id) => document.getElementById(id);
 const ids = [
   "accountValue",
+  "ethBalanceValue",
   "chainValue",
   "loyaltyValue",
   "homeError",
@@ -60,6 +61,18 @@ const onHardhat = async () => {
 const setStatus = (text) => msg(ui.slotStatus, text);
 const setHome = (text) => msg(ui.homeError, text);
 
+const refreshEthBalance = async () => {
+  try {
+    const account = ui.accountValue.textContent;
+    if (!account || account === "Not connected") return (ui.ethBalanceValue.textContent = "-");
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const balance = await provider.getBalance(account);
+    ui.ethBalanceValue.textContent = `${Number(ethers.formatEther(balance)).toFixed(4)} ETH`;
+  } catch {
+    ui.ethBalanceValue.textContent = "-";
+  }
+};
+
 const refreshLoyalty = async (contract) => {
   try {
     const account = ui.accountValue.textContent;
@@ -98,6 +111,7 @@ const refreshConfig = async () => {
     cachedOwner = owner;
     ui.commitValue.textContent = commit;
     ui.limitsValue.textContent = `Min ${ethers.formatEther(minBet)} ETH • Max ${ethers.formatEther(maxBet)} ETH • High ${ethers.formatEther(maxHighBet)} ETH • High bet unlock at ${ethers.formatUnits(thresholdTokens, 18)} tokens`;
+    await refreshEthBalance();
     await refreshLoyalty(c);
   } catch (err) {
     setStatus(pretty(err, "Failed to read contract"));
@@ -111,6 +125,7 @@ const connectWallet = async () => {
     const [account] = await provider.send("eth_requestAccounts", []);
     ui.accountValue.textContent = account || "";
     if (!(await onHardhat())) setHome("Switch MetaMask to Hardhat Localhost (chain 31337).");
+    await refreshEthBalance();
     await refreshConfig();
     await tryAutoCommit();
   } catch (err) {
@@ -203,7 +218,9 @@ const setupAutoResolve = async () => {
   eventBound = true;
   const readOnly = await getSlotMachine(true);
   readOnly.on("SpinRequested", (player) => {
-    if (AUTO_RESOLVE && HOUSE_SECRET) resolvePlayer(player);
+    if (AUTO_RESOLVE && HOUSE_SECRET && !resolving.has(player)) {
+      resolvePlayer(player);
+    }
   });
 };
 
@@ -218,12 +235,7 @@ const spin = async () => {
     })).wait();
     setStatus("Spin requested. Waiting for resolve.");
     ui.seedInput.value = randomSeed();
-    if (AUTO_RESOLVE && HOUSE_SECRET) {
-      const player = ui.accountValue.textContent;
-      if (player && player !== "Not connected") {
-        await resolvePlayer(player);
-      }
-    }
+    // Auto-resolve is handled by the SpinRequested event to avoid duplicate resolves.
   } catch (err) {
     setStatus(pretty(err, "Spin failed"));
   }
@@ -241,6 +253,7 @@ const init = async () => {
     window.ethereum.on("accountsChanged", ([account]) => {
       ui.accountValue.textContent = account || "";
       commitAttempted = false;
+      refreshEthBalance();
       refreshConfig();
       tryAutoCommit();
     });
