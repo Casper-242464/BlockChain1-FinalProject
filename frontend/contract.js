@@ -1,0 +1,144 @@
+export const SLOT_MACHINE_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+
+export const SLOT_MACHINE_ABI = [
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "commitHash", "type": "bytes32" }
+    ],
+    "name": "commitRandom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "userSeed", "type": "bytes32" }
+    ],
+    "name": "spin",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "player", "type": "address" },
+      { "internalType": "bytes32", "name": "houseSecret", "type": "bytes32" }
+    ],
+    "name": "resolveSpin",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "refund",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "currentCommit",
+    "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minBet",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxBet",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxHighBet",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "loyaltyToken",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "highBetThreshold",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "player", "type": "address" }],
+    "name": "pendingSpins",
+    "outputs": [
+      { "internalType": "uint256", "name": "wager", "type": "uint256" },
+      { "internalType": "uint256", "name": "placedBlock", "type": "uint256" },
+      { "internalType": "bytes32", "name": "userSeed", "type": "bytes32" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "player", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "wager", "type": "uint256" },
+      { "indexed": false, "internalType": "bytes32", "name": "userSeed", "type": "bytes32" },
+      { "indexed": false, "internalType": "uint256", "name": "placedBlock", "type": "uint256" }
+    ],
+    "name": "SpinRequested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "player", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "wager", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "roll", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "payout", "type": "uint256" },
+      { "indexed": false, "internalType": "bytes32", "name": "houseSecret", "type": "bytes32" }
+    ],
+    "name": "SpinResolved",
+    "type": "event"
+  }
+];
+
+export function getProvider() {
+  if (!window.ethereum) {
+    throw new Error("MetaMask not detected");
+  }
+  return new ethers.BrowserProvider(window.ethereum);
+}
+
+export async function getSigner() {
+  const provider = getProvider();
+  await provider.send("eth_requestAccounts", []);
+  return provider.getSigner();
+}
+
+export async function getSlotMachine(readOnly = false) {
+  if (readOnly) {
+    const provider = getProvider();
+    return new ethers.Contract(SLOT_MACHINE_ADDRESS, SLOT_MACHINE_ABI, provider);
+  }
+  const signer = await getSigner();
+  return new ethers.Contract(SLOT_MACHINE_ADDRESS, SLOT_MACHINE_ABI, signer);
+}

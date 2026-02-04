@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SlotFair Casino</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">SlotFair Casino</div>
+      <nav class="nav">
+        <a href="#home">Home</a>
+        <a href="#slots">Slots</a>
+      </nav>
+    </header>
+
+    <main class="content">
+      <section id="home" class="card">
+        <h1>Welcome</h1>
+        <p>
+          Connect your wallet to start playing. Every spin earns loyalty tokens
+          that unlock high-bet mode.
+        </p>
+
+        <div class="actions">
+          <button id="connectBtn" class="primary">Connect MetaMask</button>
+        </div>
+
+        <div class="info">
+          <div>
+            <span>Account</span>
+            <strong id="accountValue">Not connected</strong>
+          </div>
+          <div>
+            <span>Loyalty tokens</span>
+            <strong id="loyaltyValue">-</strong>
+          </div>
+          <div>
+            <span>Chain ID</span>
+            <strong id="chainValue">-</strong>
+          </div>
+        </div>
+        <div id="homeError" class="error hidden"></div>
+      </section>
+
+      <section id="slots" class="card">
+        <h1>Slots</h1>
+        <p>Provably fair commit-reveal slots game.</p>
+
+        <div class="grid">
+          <div>
+            <label>Bet (ETH)</label>
+            <input id="betInput" placeholder="1" value="1" />
+          </div>
+          <div>
+            <label>User seed</label>
+            <input id="seedInput" />
+          </div>
+        </div>
+
+        <button id="spinBtn" class="primary">Spin</button>
+
+        <div class="slot-display">
+          <div class="slot-reel" id="reel1">🍒</div>
+          <div class="slot-reel" id="reel2">🍋</div>
+          <div class="slot-reel" id="reel3">🔔</div>
+        </div>
+
+        <div class="info">
+          <div>
+            <span>Current commit</span>
+            <strong id="commitValue" class="mono">-</strong>
+          </div>
+          <div>
+            <span>Limits</span>
+            <strong id="limitsValue">-</strong>
+          </div>
+        </div>
+
+        <div id="slotStatus" class="status hidden"></div>
+      </section>
+    </main>
+
+    <footer class="footer">Casino Web dApp</footer>
+
+    <div id="resultModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>Spin Result</h3>
+        <div class="modal-reels">
+          <div class="slot-reel" id="modalReel1">🍒</div>
+          <div class="slot-reel" id="modalReel2">🍋</div>
+          <div class="slot-reel" id="modalReel3">🔔</div>
+        </div>
+        <p id="modalResult">-</p>
+        <button id="closeModal" class="primary">Close</button>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+    <script type="module" src="./gameLogic.js"></script>
+    <script type="module" src="./contract.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
