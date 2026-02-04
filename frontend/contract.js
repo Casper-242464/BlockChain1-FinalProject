@@ -1,6 +1,6 @@
-export const SLOT_MACHINE_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+export let SLOT_MACHINE_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 
-export const SLOT_MACHINE_ABI = [
+export let SLOT_MACHINE_ABI = [
   {
     "inputs": [
       { "internalType": "bytes32", "name": "commitHash", "type": "bytes32" }
@@ -126,6 +126,26 @@ export function getProvider() {
     throw new Error("MetaMask not detected");
   }
   return new ethers.BrowserProvider(window.ethereum);
+}
+
+const fetchJson = async (url) => {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Failed to load contract data from ${url}`);
+  }
+  return response.json();
+};
+
+export async function syncSlotMachineContract({
+  dataUrl = "/contract-data/slot-machine.json",
+} = {}) {
+  const data = await fetchJson(dataUrl);
+  if (!data?.address || !data?.abi) {
+    throw new Error("Invalid contract data payload");
+  }
+  SLOT_MACHINE_ADDRESS = data.address;
+  SLOT_MACHINE_ABI = data.abi;
+  return { address: SLOT_MACHINE_ADDRESS, abi: SLOT_MACHINE_ABI };
 }
 
 export async function getSigner() {

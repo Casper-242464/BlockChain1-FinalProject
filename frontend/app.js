@@ -1,4 +1,4 @@
-import { getSlotMachine } from "./contract.js";
+import { getSlotMachine, syncSlotMachineContract } from "./contract.js";
 import { computeSlotsFromRoll, normalizeSecret, randomSeed } from "./gameLogic.js";
 
 const $ = (id) => document.getElementById(id);
@@ -257,6 +257,11 @@ const init = async () => {
       refreshConfig();
       tryAutoCommit();
     });
+  }
+  try {
+    await syncSlotMachineContract();
+  } catch (err) {
+    setHome(pretty(err, "Failed to sync contract data"));
   }
   await refreshConfig();
   await setupAutoResolve();
