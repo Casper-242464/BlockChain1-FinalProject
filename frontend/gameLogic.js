@@ -23,9 +23,9 @@ export function computeSlotsFromRoll(roll) {
   const reel3 = ICONS[Math.floor(r / 100) % 10];
 
   let result = "Try again";
-  if (r < 5) {
+  if (reel1 === reel2 && reel2 === reel3) {
     result = "Jackpot! x10";
-  } else if (r < 100) {
+  } else if (reel1 === reel2 || reel1 === reel3 || reel2 === reel3) {
     result = "Win! x2";
   }
 

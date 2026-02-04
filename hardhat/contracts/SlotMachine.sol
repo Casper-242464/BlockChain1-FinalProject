@@ -40,9 +40,11 @@ contract SlotMachine is Ownable, ReentrancyGuard {
     function spin(bytes32 userSeed) external payable nonReentrant {
         require(currentCommit != bytes32(0), "Commit not set");
         PendingSpin storage pending = pendingSpins[msg.sender];
-        require(pending.wager >= minBet, "Pending spin exists");
+        require(pending.wager == 0, "Pending spin exists");
+        uint256 wager = msg.value;
+        require(wager >= minBet, "Bet too low");
 
-        uint256 allowedMax = loyaltyToken.balanceOf(msg.sender) >= highBetThreshold ? maxHighBet:maxBet;
+        uint256 allowedMax = loyaltyToken.balanceOf(msg.sender) >= highBetThreshold ? maxHighBet : maxBet;
         require(wager <= allowedMax, "Bet too high");
 
         pendingSpins[msg.sender] = PendingSpin({
@@ -66,10 +68,13 @@ contract SlotMachine is Ownable, ReentrancyGuard {
             abi.encodePacked(houseSecret, pending.userSeed, blockhash(pending.placedBlock))
         );
         uint256 roll = uint256(randomHash) % 1000;
+        uint256 reel1 = roll % 10;
+        uint256 reel2 = (roll / 10) % 10;
+        uint256 reel3 = (roll / 100) % 10;
         uint256 payoutMultiplier = 0;
-        if (roll < 5) {
+        if (reel1 == reel2 && reel2 == reel3) {
             payoutMultiplier = 10;
-        } else if (roll < 100) {
+        } else if (reel1 == reel2 || reel1 == reel3 || reel2 == reel3) {
             payoutMultiplier = 2;
         }
         uint256 wager = pending.wager;
