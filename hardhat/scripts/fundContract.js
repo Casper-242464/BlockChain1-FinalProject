@@ -2,7 +2,7 @@ const hre = require("hardhat");
 const { ethers } = hre;
 
 async function main() {
-  const SLOT_MACHINE_ADDRESS = "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853";
+  const SLOT_MACHINE_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
   const [sender] = await ethers.getSigners();
   const fundAmount = ethers.parseEther("100");
   
