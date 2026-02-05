@@ -18,19 +18,11 @@ From the project root, install dependencies in both workspaces:
 ## Deployment (Local Hardhat)
 1) Start a local Hardhat node:
 - In the hardhat folder:
-  - npx hardhat node
+  - npm run node
 
 2) Deploy contracts with Ignition:
 - In the hardhat folder (new terminal):
-  - npx hardhat ignition deploy ./ignition/modules/Slots.js --network localhost
-  - npx hardhat run scripts/fundContract.js --network localhost 
-
-3) Update frontend contract address (if needed):
-- The deployed address is written to:
-  - hardhat/ignition/deployments/chain-31337/deployed_addresses.json
-- Copy the SlotMachine address into:
-  - frontend/contract.js (SLOT_MACHINE_ADDRESS)
-  - hardhat/scripts/fundContract.js (SLOT_MACHINE_ADDRESS)
+  - npm run deploy
 
 ## Execution (Frontend)
 1) Start the static server:
@@ -48,4 +40,3 @@ From the project root, install dependencies in both workspaces:
 
 ## Notes
 - The house (owner) wallet must be connected to auto-resolve spins.
-- If you redeploy, update SLOT_MACHINE_ADDRESS in frontend/contract.js.
