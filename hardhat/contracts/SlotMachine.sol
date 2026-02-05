@@ -102,4 +102,6 @@ contract SlotMachine is Ownable, ReentrancyGuard {
         (bool sent, ) = msg.sender.call{value: amount}("");
         require(sent, "Withdraw failed");
     }
+
+    receive() external payable {}
 }

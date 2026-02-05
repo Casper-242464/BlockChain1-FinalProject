@@ -1,102 +1,174 @@
-import { getSlotMachine, syncSlotMachineContract } from "./contract.js";
-import { computeSlotsFromRoll, normalizeSecret, randomSeed } from "./gameLogic.js";
+import * as ethers from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
+import { getSlotMachine, syncSlotMachineContract, SLOT_MACHINE_ADDRESS } from "./contract.js";
+import { computeSlotsFromRoll, normalizeSecret, randomSeed, ICONS } from "./gameLogic.js";
 
-const $ = (id) => document.getElementById(id);
-const ids = [
-  "accountValue",
-  "ethBalanceValue",
-  "chainValue",
-  "loyaltyValue",
-  "homeError",
-  "betInput",
-  "seedInput",
-  "commitValue",
-  "limitsValue",
-  "slotStatus",
-  "reel1",
-  "reel2",
-  "reel3",
-  "connectBtn",
-  "spinBtn",
-  "resultModal",
-  "modalReel1",
-  "modalReel2",
-  "modalReel3",
-  "modalResult",
-  "closeModal",
-];
-const ui = Object.fromEntries(ids.map((id) => [id, $(id)]));
+// ============================================
+// Utility: DOM Selector
+// ============================================
+const $ = (sel) => {
+  if (typeof sel === "string" && sel.startsWith("#")) {
+    return document.querySelector(sel);
+  }
+  return document.getElementById(sel);
+};
 
-const HARDHAT_CHAIN_ID = 31337n;
+// ============================================
+// Constants & Config
+// ============================================
+const TARGET_CHAIN_ID_DEC = 31337;
+const TARGET_CHAIN_ID_HEX = "0x7A69";
 const HOUSE_SECRET = "superSecretHouseSeed";
 const AUTO_RESOLVE = true;
 
+// ============================================
+// State
+// ============================================
 let currentCommit = "0x";
 let cachedOwner = "";
 let commitAttempted = false;
 let eventBound = false;
 const resolving = new Set();
+let userAddress = null;
+let stopReels = null;
 
-const msg = (el, text) => {
-  el.classList.toggle("hidden", !text);
-  el.textContent = text || "";
-};
+// ============================================
+// UI Helpers
+// ============================================
+function shortAddr(a) {
+  if (!a) return "";
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
 
-const pretty = (err, fallback) => {
+function nowTime() {
+  const d = new Date();
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function formatEth(value) {
+  try {
+    return `${Number(ethers.formatEther(value)).toFixed(4)} ETH`;
+  } catch {
+    return `${value}`;
+  }
+}
+
+function formatTokens(value, decimals) {
+  try {
+    return ethers.formatUnits(value, decimals);
+  } catch {
+    return `${value}`;
+  }
+}
+
+function pretty(err, fallback) {
   if (!err) return fallback;
   if (typeof err === "string") return err;
   if (err?.info?.error?.message) return err.info.error.message;
   if (err?.reason) return err.reason;
   if (err?.message) return err.message;
   return fallback;
-};
+}
+
+function toast(type, title, msg = "") {
+  const wrap = $("#toasts");
+  const el = document.createElement("div");
+  el.className = `toast ${type}`;
+  el.innerHTML = `
+    <div class="toast-title">${title}</div>
+    ${msg ? `<div class="toast-msg">${msg}</div>` : ""}
+  `;
+  wrap.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("show"));
+  setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(() => el.remove(), 250);
+  }, 3200);
+}
+
+function logLine(text, kind = "info") {
+  const box = $("#log");
+  const line = document.createElement("div");
+  line.className = `log-line ${kind}`;
+  line.textContent = `[${nowTime()}] ${text}`;
+  box.prepend(line);
+}
+
+function setStatus(text, kind = "neutral") {
+  const s = $("#status");
+  s.textContent = text;
+  s.className = `pill ${kind}`;
+}
+
+function setBusy(isBusy) {
+  $("#btnConnect").disabled = isBusy;
+  $("#btnSpin").disabled = isBusy || !userAddress;
+  $("#betEth").disabled = isBusy || !userAddress;
+}
+
+// ============================================
+// UI Setup
+// ============================================
+function initContractAddr() {
+  const contractAddrEl = $("#contractAddr");
+  if (contractAddrEl) {
+    contractAddrEl.textContent = shortAddr(SLOT_MACHINE_ADDRESS);
+  }
+}
 
 const onHardhat = async () => {
   if (!window.ethereum) return false;
   const network = await new ethers.BrowserProvider(window.ethereum).getNetwork();
-  ui.chainValue.textContent = network.chainId.toString();
-  return network.chainId === HARDHAT_CHAIN_ID;
+  $("#net").textContent = `chainId ${Number(network.chainId)}`;
+  return Number(network.chainId) === TARGET_CHAIN_ID_DEC;
 };
 
-const setStatus = (text) => msg(ui.slotStatus, text);
-const setHome = (text) => msg(ui.homeError, text);
-
-const refreshEthBalance = async () => {
-  try {
-    const account = ui.accountValue.textContent;
-    if (!account || account === "Not connected") return (ui.ethBalanceValue.textContent = "-");
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const balance = await provider.getBalance(account);
-    ui.ethBalanceValue.textContent = `${Number(ethers.formatEther(balance)).toFixed(4)} ETH`;
-  } catch {
-    ui.ethBalanceValue.textContent = "-";
+const ensureEthereum = () => {
+  if (!window.ethereum) {
+    setStatus("MetaMask not found", "bad");
+    logLine("MetaMask not detected - please install MetaMask extension", "err");
+    toast("err", "MetaMask not found", "Install MetaMask extension and refresh.");
+    throw new Error("MetaMask not found");
   }
 };
 
-const refreshLoyalty = async (contract) => {
+async function refreshBalance() {
   try {
-    const account = ui.accountValue.textContent;
-    if (!account || account === "Not connected") return (ui.loyaltyValue.textContent = "-");
-    const tokenAddress = await contract.loyaltyToken();
+    const c = await getSlotMachine(true);
+    const account = userAddress;
+    if (!account) return ($("#bal").textContent = "-");
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const balance = await provider.getBalance(account);
+    $("#bal").textContent = formatEth(balance);
+  } catch {
+    $("#bal").textContent = "-";
+  }
+}
+
+async function refreshLoyalty() {
+  try {
+    const account = userAddress;
+    if (!account) return ($("#loyalty").textContent = "-");
+    const c = await getSlotMachine(true);
+    const tokenAddress = await c.loyaltyToken();
     const erc20 = new ethers.Contract(
       tokenAddress,
       [
         "function balanceOf(address) view returns (uint256)",
         "function decimals() view returns (uint8)",
       ],
-      contract.runner
+      c.runner
     );
     const [balance, decimals] = await Promise.all([
       erc20.balanceOf(account),
       erc20.decimals(),
     ]);
-    ui.loyaltyValue.textContent = ethers.formatUnits(balance, decimals);
+    $("#loyalty").textContent = formatTokens(balance, decimals);
   } catch {
-    ui.loyaltyValue.textContent = "-";
+    $("#loyalty").textContent = "-";
   }
-};
+}
 
-const refreshConfig = async () => {
+async function refreshConfig() {
   try {
     const c = await getSlotMachine(true);
     const [minBet, maxBet, maxHighBet, thresholdTokens, commit, owner] = await Promise.all([
@@ -109,49 +181,88 @@ const refreshConfig = async () => {
     ]);
     currentCommit = commit;
     cachedOwner = owner;
-    ui.commitValue.textContent = commit;
-    ui.limitsValue.textContent = `Min ${ethers.formatEther(minBet)} ETH • Max ${ethers.formatEther(maxBet)} ETH • High ${ethers.formatEther(maxHighBet)} ETH • High bet unlock at ${ethers.formatUnits(thresholdTokens, 18)} tokens`;
-    await refreshEthBalance();
-    await refreshLoyalty(c);
+    logLine(`Config: min ${formatEth(minBet)} • max ${formatEth(maxBet)}`, "ok");
+    await refreshBalance();
+    await refreshLoyalty();
   } catch (err) {
-    setStatus(pretty(err, "Failed to read contract"));
+    logLine(pretty(err, "Failed to read contract"), "err");
   }
-};
+}
 
-const connectWallet = async () => {
+async function connect() {
   try {
-    setHome("");
+    ensureEthereum();
+    setBusy(true);
+
     const provider = new ethers.BrowserProvider(window.ethereum);
-    const [account] = await provider.send("eth_requestAccounts", []);
-    ui.accountValue.textContent = account || "";
-    if (!(await onHardhat())) setHome("Switch MetaMask to Hardhat Localhost (chain 31337).");
-    await refreshEthBalance();
+    const accounts = await provider.send("eth_requestAccounts", []);
+    userAddress = accounts?.[0] || null;
+
+    const network = await provider.getNetwork();
+    const chainId = Number(network.chainId);
+
+    if (chainId !== TARGET_CHAIN_ID_DEC) {
+      setStatus(`Wrong network (chainId ${chainId})`, "warn");
+      toast("warn", "Wrong network", "Switching to Hardhat Localhost...");
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: TARGET_CHAIN_ID_HEX }],
+        });
+      } catch (e) {
+        logLine("Please manually switch to Hardhat (chainId 31337)", "err");
+      }
+    }
+
+    $("#acc").textContent = shortAddr(userAddress);
+    setStatus("Connected", "good");
+    toast("ok", "Wallet connected", shortAddr(userAddress));
+    logLine(`Connected: ${userAddress}`, "ok");
+
+    await syncSlotMachineContract();
+    await refreshBalance();
+    await refreshLoyalty();
     await refreshConfig();
     await tryAutoCommit();
-  } catch (err) {
-    setHome(pretty(err, "Failed to connect"));
+    await setupAutoResolve();
+
+    setBusy(false);
+  } catch (e) {
+    setBusy(false);
+    setStatus("Connect failed", "bad");
+    toast("err", "Connection failed", e?.message || String(e));
+    logLine(`Connect error: ${e?.message || e}`, "err");
   }
-};
+}
 
 const commit = async () => {
   if (!HOUSE_SECRET) return;
   try {
-    if (!(await onHardhat())) return setStatus("Switch MetaMask to Hardhat Localhost (chain 31337).");
+    if (!(await onHardhat())) return setStatus("Switch to Hardhat (31337).", "warn");
     if (currentCommit && !/^0x0+$/.test(currentCommit)) return;
+    
     const c = await getSlotMachine(false);
     const signer = c.runner;
-    if (!signer?.getAddress) return setStatus("Wallet not connected.");
+    if (!signer?.getAddress) return setStatus("Wallet not connected.", "bad");
+    
     const signerAddress = await signer.getAddress();
     if (cachedOwner && cachedOwner.toLowerCase() !== signerAddress.toLowerCase()) {
-      return setStatus("Auto-resolve needs the owner wallet connected.");
+      return setStatus("Need owner wallet for auto-resolve", "bad");
     }
+    
     const commitHash = ethers.keccak256(normalizeSecret(HOUSE_SECRET));
-    setStatus("Committing house seed...");
+    setStatus("Committing house seed...", "neutral");
+    logLine("Committing house seed...");
+    
     await (await c.commitRandom(commitHash)).wait();
-    ui.commitValue.textContent = commitHash;
-    setStatus("Commit set. Players can spin now.");
+    currentCommit = commitHash;
+    setStatus("Commit set ✓", "good");
+    logLine("House commit successful", "ok");
+    toast("ok", "House seed committed");
   } catch (err) {
-    setStatus(pretty(err, "Commit failed"));
+    setStatus("Commit failed", "bad");
+    logLine(pretty(err, "Commit failed"), "err");
+    toast("err", "Commit failed", pretty(err));
   }
 };
 
@@ -163,28 +274,26 @@ const tryAutoCommit = async () => {
   }
 };
 
-const showResult = (reels, result) => {
-  [ui.modalReel1, ui.modalReel2, ui.modalReel3].forEach((el, i) => {
-    el.textContent = reels[i];
-  });
-  ui.modalResult.textContent = result;
-  ui.resultModal.classList.remove("hidden");
-};
-
 const resolvePlayer = async (player) => {
   if (!HOUSE_SECRET) return;
   if (resolving.has(player)) return;
   resolving.add(player);
+  
   try {
     const c = await getSlotMachine(false);
     const signer = c.runner;
-    if (!signer?.getAddress) return setStatus("Wallet not connected.");
+    if (!signer?.getAddress) return setStatus("Wallet not connected.", "bad");
+    
     const signerAddress = await signer.getAddress();
     if (cachedOwner && cachedOwner.toLowerCase() !== signerAddress.toLowerCase()) {
-      return setStatus("Auto-resolve needs the owner wallet connected.");
+      return setStatus("Need owner wallet for resolve", "bad");
     }
+    
     if (!currentCommit || /^0x0+$/.test(currentCommit)) await commit();
+    
+    logLine(`Resolving spin for ${shortAddr(player)}...`, "info");
     const receipt = await (await c.resolveSpin(player, normalizeSecret(HOUSE_SECRET))).wait();
+    
     const resolved = receipt.logs
       .map((log) => {
         try {
@@ -194,20 +303,39 @@ const resolvePlayer = async (player) => {
         }
       })
       .find((event) => event && event.name === "SpinResolved");
+    
     if (resolved) {
       const { roll } = resolved.args;
       const { reels, result } = computeSlotsFromRoll(roll);
-      ui.reel1.textContent = reels[0];
-      ui.reel2.textContent = reels[1];
-      ui.reel3.textContent = reels[2];
-      setStatus(`Spin resolved: ${result}`);
-      showResult(reels, result);
+      $("#r1").textContent = reels[0];
+      $("#r2").textContent = reels[1];
+      $("#r3").textContent = reels[2];
+      if (stopReels) {
+        stopReels();
+        stopReels = null;
+      }
+      setStatus(`Result: ${result}`, "good");
+      logLine(`Spin resolved: ${result}`, "ok");
+      $("#lastResult").textContent = result;
+      toast("ok", "Spin resolved", result);
     } else {
-      setStatus("Spin resolved.");
+      if (stopReels) {
+        stopReels();
+        stopReels = null;
+      }
+      setStatus("Spin resolved ✓", "good");
+      logLine("Spin resolved", "ok");
     }
-    refreshConfig();
+    
+    await refreshConfig();
+    await refreshLoyalty();
   } catch (err) {
-    setStatus(pretty(err, "Auto-resolve failed"));
+    if (stopReels) {
+      stopReels();
+      stopReels = null;
+    }
+    setStatus("Resolve failed", "bad");
+    logLine(pretty(err, "Auto-resolve failed"), "err");
   } finally {
     resolving.delete(player);
   }
@@ -216,56 +344,130 @@ const resolvePlayer = async (player) => {
 const setupAutoResolve = async () => {
   if (eventBound) return;
   eventBound = true;
-  const readOnly = await getSlotMachine(true);
-  readOnly.on("SpinRequested", (player) => {
-    if (AUTO_RESOLVE && HOUSE_SECRET && !resolving.has(player)) {
-      resolvePlayer(player);
-    }
-  });
-};
-
-const spin = async () => {
   try {
-    if (!(await onHardhat())) return setStatus("Switch MetaMask to Hardhat Localhost (chain 31337).");
-    if (!currentCommit || /^0x0+$/.test(currentCommit)) return setStatus("Commit not set. Waiting for house commit.");
-    setStatus("Submitting spin...");
-    const betValue = (ui.betInput.value || "0").replace(",", ".");
-    await (await (await getSlotMachine(false)).spin(ui.seedInput.value, {
-      value: ethers.parseEther(betValue),
-    })).wait();
-    setStatus("Spin requested. Waiting for resolve.");
-    ui.seedInput.value = randomSeed();
-    // Auto-resolve is handled by the SpinRequested event to avoid duplicate resolves.
+    const readOnly = await getSlotMachine(true);
+    readOnly.on("SpinRequested", (player) => {
+      if (AUTO_RESOLVE && HOUSE_SECRET && !resolving.has(player)) {
+        logLine(`SpinRequested: ${shortAddr(player)}`);
+        resolvePlayer(player);
+      }
+    });
+    logLine("Auto-resolve listener attached", "ok");
   } catch (err) {
-    setStatus(pretty(err, "Spin failed"));
+    logLine("Could not setup auto-resolve: " + err.message, "err");
   }
 };
 
-const init = async () => {
-  ui.seedInput.value = randomSeed();
-  ui.connectBtn.addEventListener("click", connectWallet);
-  ui.spinBtn.addEventListener("click", spin);
-  ui.closeModal.addEventListener("click", () => ui.resultModal.classList.add("hidden"));
-  ui.resultModal.addEventListener("click", (event) => {
-    if (event.target === ui.resultModal) ui.resultModal.classList.add("hidden");
-  });
-  if (window.ethereum) {
-    window.ethereum.on("accountsChanged", ([account]) => {
-      ui.accountValue.textContent = account || "";
+function randomSymbol() {
+  return ICONS[Math.floor(Math.random() * ICONS.length)];
+}
+
+function startReels() {
+  ["#r1", "#r2", "#r3"].forEach((id) => $(id).classList.add("spin"));
+  const timers = [];
+  timers.push(setInterval(() => ($("#r1").textContent = randomSymbol()), 70));
+  timers.push(setInterval(() => ($("#r2").textContent = randomSymbol()), 80));
+  timers.push(setInterval(() => ($("#r3").textContent = randomSymbol()), 90));
+  return () => {
+    timers.forEach(clearInterval);
+    ["#r1", "#r2", "#r3"].forEach((id) => $(id).classList.remove("spin"));
+  };
+}
+
+async function spin() {
+  if (!userAddress) return toast("warn", "Connect wallet first");
+  
+  try {
+    setBusy(true);
+
+    const bet = Number($("#betEth").value || 0);
+    if (!Number.isFinite(bet) || bet <= 0) {
+      setBusy(false);
+      return toast("warn", "Invalid bet", "Enter bet > 0");
+    }
+
+    if (!(await onHardhat())) {
+      setBusy(false);
+      return setStatus("Wrong network", "bad");
+    }
+
+    if (!currentCommit || /^0x0+$/.test(currentCommit)) {
+      setBusy(false);
+      return setStatus("Waiting for house commit...", "warn");
+    }
+
+    setStatus("Submitting spin...", "neutral");
+    if (stopReels) {
+      stopReels();
+    }
+    stopReels = startReels();
+
+    const c = await getSlotMachine(false);
+    const seed = $("#betEth").dataset.seed || randomSeed();
+    
+    logLine(`Spinning with bet ${bet} ETH...`);
+    const tx = await c.spin(normalizeSecret(seed), {
+      value: ethers.parseEther(String(bet)),
+    });
+    
+    logLine(`Tx: ${shortAddr(tx.hash)}`, "ok");
+    $("#lastTx").textContent = shortAddr(tx.hash);
+    toast("ok", "Spin submitted", `${bet} ETH`);
+
+    const receipt = await tx.wait();
+
+    setStatus("Spin requested", "neutral");
+    $("#lastResult").textContent = "Waiting for resolve...";
+    logLine(`Confirmed. Block ${receipt.blockNumber}`, "ok");
+    
+    await refreshBalance();
+    await refreshLoyalty();
+    setBusy(false);
+  } catch (e) {
+    setBusy(false);
+    if (stopReels) {
+      stopReels();
+      stopReels = null;
+    }
+    setStatus("Spin failed", "bad");
+    toast("err", "Spin failed", pretty(e));
+    logLine(`Spin error: ${pretty(e)}`, "err");
+  }
+}
+
+function attachListeners() {
+  $("#btnConnect").onclick = connect;
+  $("#btnSpin").onclick = spin;
+  $("#btnClear").onclick = () => ($("#log").innerHTML = "");
+
+  if (window.ethereum?.on) {
+    window.ethereum.on("accountsChanged", () => {
+      logLine("Account changed. Reconnect needed.", "err");
+      toast("warn", "Account changed");
+      setStatus("Account changed", "warn");
+      userAddress = null;
+      $("#acc").textContent = "—";
+      $("#bal").textContent = "—";
+      $("#btnSpin").disabled = true;
       commitAttempted = false;
-      refreshEthBalance();
-      refreshConfig();
-      tryAutoCommit();
+    });
+
+    window.ethereum.on("chainChanged", () => {
+      logLine("Chain changed. Reloading...", "err");
+      toast("warn", "Chain changed");
+      location.reload();
     });
   }
-  try {
-    await syncSlotMachineContract();
-  } catch (err) {
-    setHome(pretty(err, "Failed to sync contract data"));
-  }
-  await refreshConfig();
-  await setupAutoResolve();
-  await tryAutoCommit();
-};
+}
 
-init();
+async function boot() {
+  initContractAddr();
+  attachListeners();
+  logLine("Ready. Click Connect Wallet to start.", "ok");
+  
+  try {
+    await refreshConfig();
+  } catch {}
+}
+
+boot();

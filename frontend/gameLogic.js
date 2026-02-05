@@ -1,4 +1,6 @@
-const ICONS = ["🍒", "🍋", "🔔", "⭐", "7️⃣", "💎", "🍇", "🍀", "🎲", "🔥"];
+import * as ethers from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
+
+export const ICONS = ["🍒", "🍋", "🔔", "⭐", "7️⃣", "💎", "🍇", "🍀", "🎲", "🔥"];
 
 export function randomSeed() {
   const bytes = new Uint8Array(32);

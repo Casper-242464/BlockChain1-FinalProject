@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -7,103 +7,114 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">SlotFair Casino</div>
-      <nav class="nav">
-        <a href="#home">Home</a>
-        <a href="#slots">Slots</a>
-      </nav>
-    </header>
-
-    <main class="content">
-      <section id="home" class="card">
-        <h1>Welcome</h1>
-        <p>
-          Connect your wallet to start playing. Every spin earns loyalty tokens
-          that unlock high-bet mode.
-        </p>
-
-        <div class="actions">
-          <button id="connectBtn" class="primary">Connect MetaMask</button>
-        </div>
-
-        <div class="info">
+    <div class="bg">
+      <div class="top-glow"></div>
+      <div class="container">
+        <header class="header">
           <div>
-            <span>Account</span>
-            <strong id="accountValue">Not connected</strong>
+            <div class="brand">
+              <div class="logo">🎰</div>
+              <div>
+                <div class="title">SlotFair Casino</div>
+                <div class="subtitle">Hardhat • MetaMask • Ethers.js</div>
+              </div>
+            </div>
           </div>
-          <div>
-            <span>ETH balance</span>
-            <strong id="ethBalanceValue">-</strong>
+
+          <div class="header-right">
+            <div id="status" class="pill neutral">Not connected</div>
+            <button id="btnConnect" class="btn primary">Connect Wallet</button>
           </div>
-          <div>
-            <span>Loyalty tokens</span>
-            <strong id="loyaltyValue">-</strong>
-          </div>
-          <div>
-            <span>Chain ID</span>
-            <strong id="chainValue">-</strong>
-          </div>
-        </div>
-        <div id="homeError" class="error hidden"></div>
-      </section>
+        </header>
 
-      <section id="slots" class="card">
-        <h1>Slots</h1>
-        <p>Provably fair commit-reveal slots game.</p>
+        <main class="grid">
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Wallet</div>
+                <div class="card-sub">Address, network, balance</div>
+              </div>
+              <div class="mini">
+                <div class="mini-label">Contract</div>
+                <div class="mono" id="contractAddr">—</div>
+              </div>
+            </div>
 
-        <div class="grid">
-          <div>
-            <label>Bet (ETH)</label>
-            <input id="betInput" placeholder="1" value="1" />
-          </div>
-          <div>
-            <label>User seed</label>
-            <input id="seedInput" />
-          </div>
-        </div>
+            <div class="stats">
+              <div class="stat">
+                <div class="stat-label">Account</div>
+                <div id="acc" class="stat-value mono">—</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Network</div>
+                <div id="net" class="stat-value">—</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Balance</div>
+                <div id="bal" class="stat-value">—</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Loyalty</div>
+                <div id="loyalty" class="stat-value">—</div>
+              </div>
+            </div>
 
-        <button id="spinBtn" class="primary">Spin</button>
+            <div class="divider"></div>
 
-        <div class="slot-display">
-          <div class="slot-reel" id="reel1">🍒</div>
-          <div class="slot-reel" id="reel2">🍋</div>
-          <div class="slot-reel" id="reel3">🔔</div>
-        </div>
+            <div class="actions">
+              <div class="field">
+                <label>Bet amount (ETH)</label>
+                <input id="betEth" type="number" min="0" step="0.001" value="0.01" />
+                <div class="hint">Tip: on Hardhat you can bet small like 0.001</div>
+              </div>
 
-        <div class="info">
-          <div>
-            <span>Current commit</span>
-            <strong id="commitValue" class="mono">-</strong>
-          </div>
-          <div>
-            <span>Limits</span>
-            <strong id="limitsValue">-</strong>
-          </div>
-        </div>
+              <button id="btnSpin" class="btn glow" disabled>
+                <span class="btn-ico">🎲</span>
+                <span>Spin</span>
+              </button>
+            </div>
 
-        <div id="slotStatus" class="status hidden"></div>
-      </section>
-    </main>
+            <div class="divider"></div>
 
-    <footer class="footer">Casino Web dApp</footer>
+            <div class="reels">
+              <div class="reel" id="r1">🍒</div>
+              <div class="reel" id="r2">🍋</div>
+              <div class="reel" id="r3">🔔</div>
+            </div>
 
-    <div id="resultModal" class="modal hidden">
-      <div class="modal-content">
-        <h3>Spin Result</h3>
-        <div class="modal-reels">
-          <div class="slot-reel" id="modalReel1">🍒</div>
-          <div class="slot-reel" id="modalReel2">🍋</div>
-          <div class="slot-reel" id="modalReel3">🔔</div>
-        </div>
-        <p id="modalResult">-</p>
-        <button id="closeModal" class="primary">Close</button>
+            <div class="result">
+              <div class="result-left">
+                <div class="result-label">Last result</div>
+                <div id="lastResult" class="result-value">—</div>
+              </div>
+              <div class="result-right">
+                <div class="result-label">Tx</div>
+                <a id="lastTx" class="mono link" href="#" target="_blank" rel="noreferrer">—</a>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Activity</div>
+                <div class="card-sub">Events / errors / tx hashes</div>
+              </div>
+              <button id="btnClear" class="btn ghost">Clear</button>
+            </div>
+
+            <div id="log" class="log"></div>
+          </section>
+        </main>
+
+        <footer class="footer">
+          <div class="muted">Local: chainId 31337 • If MetaMask is on another chain, switch to Hardhat.</div>
+        </footer>
       </div>
+
+      <div id="toasts" class="toasts"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
-    <script type="module" src="./gameLogic.js"></script>
-    <script type="module" src="./contract.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
