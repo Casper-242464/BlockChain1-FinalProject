@@ -23,17 +23,19 @@ From the project root, install dependencies in both workspaces:
 2) Deploy contracts with Ignition:
 - In the hardhat folder (new terminal):
   - npx hardhat ignition deploy ./ignition/modules/Slots.js --network localhost
+  - npx hardhat run scripts/fundContract.js --network localhost 
 
 3) Update frontend contract address (if needed):
 - The deployed address is written to:
   - hardhat/ignition/deployments/chain-31337/deployed_addresses.json
 - Copy the SlotMachine address into:
   - frontend/contract.js (SLOT_MACHINE_ADDRESS)
+  - hardhat/scripts/fundContract.js (SLOT_MACHINE_ADDRESS)
 
 ## Execution (Frontend)
 1) Start the static server:
 - In the frontend folder:
-  - node server.js
+  - npm run serve
 
 2) Open the app:
 - http://localhost:5173
