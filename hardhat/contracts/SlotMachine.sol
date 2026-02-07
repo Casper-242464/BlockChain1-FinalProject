@@ -14,8 +14,8 @@ contract SlotMachine is Ownable, ReentrancyGuard {
     bytes32 public currentCommit;
     uint256 public commitBlock;
     uint256 public minBet = 1 ether;
-    uint256 public maxBet = 5 ether;
-    uint256 public maxHighBet = 10 ether;
+    uint256 public maxBet = 100 ether;
+    uint256 public maxHighBet = 500 ether;
     uint256 public highBetThreshold = 10 ether;
     uint256 public constant LOYALTY_PER_SPIN = 10 ether;
 
